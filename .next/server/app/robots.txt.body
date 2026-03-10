@@ -1,0 +1,11 @@
+User-Agent: *
+Allow: /
+Disallow: /users
+Disallow: /users/*
+Disallow: /home
+Disallow: /me
+Disallow: /groups
+Disallow: /chats
+Disallow: /notifications
+Disallow: /admin
+

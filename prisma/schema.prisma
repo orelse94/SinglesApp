@@ -1,0 +1,669 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum VerificationStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  MEMBERS_ONLY
+  PRIVATE
+}
+
+enum ChatRequestPolicy {
+  EVERYONE
+  VERIFIED_ONLY
+  NOBODY
+}
+
+enum PhotoRequestPolicy {
+  VERIFIED_ONLY
+  NOBODY
+}
+
+enum ActivityVisibility {
+  SHOW
+  HIDE
+}
+
+enum MediaType {
+  PROFILE
+  GALLERY
+}
+
+enum MediaVisibilityLevel {
+  PUBLIC
+  APPROVED
+  PRIVATE
+}
+
+enum GroupType {
+  OPEN
+  CLOSED
+  INVITE_ONLY
+}
+
+enum GroupStatus {
+  ACTIVE
+  ARCHIVED
+  DISABLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  LEFT
+  BANNED
+}
+
+enum GroupRole {
+  MEMBER
+  MANAGER
+  OWNER
+}
+
+enum GroupJoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+enum PostContextType {
+  GLOBAL_FEED
+  GROUP
+}
+
+enum PostVisibilityStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+enum ModerationStatus {
+  CLEAN
+  UNDER_REVIEW
+  REMOVED
+}
+
+enum ChatRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+  EXPIRED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+  BLOCKED
+}
+
+enum PhotoAccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+  EXPIRED
+}
+
+enum NotificationType {
+  CHAT_REQUEST_INCOMING
+  CHAT_REQUEST_ACCEPTED
+  PHOTO_ACCESS_REQUEST_INCOMING
+  PHOTO_ACCESS_APPROVED
+  GROUP_JOIN_APPROVED
+  COMMENT_RECEIVED
+  REPORT_UPDATE
+  SYSTEM
+}
+
+enum ReportTargetType {
+  USER
+  POST
+  COMMENT
+  MESSAGE
+  GROUP
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum EventPromotionStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum PlacementType {
+  HOME_FEED_CARD
+  GROUPS_LIST_BANNER
+  GROUP_DETAIL_BANNER
+}
+
+model User {
+  id                   String @id @default(cuid())
+  email                String @unique
+  emailVerified        DateTime?
+  phone                String? @unique
+  passwordHash         String?
+  displayName          String
+  bio                  String?
+  region               String?
+  ageVerified          Boolean @default(false)
+  phoneVerifiedAt      DateTime?
+  verificationStatus   VerificationStatus @default(NONE)
+  verifiedBadgeVisible Boolean @default(true)
+  profileVisibility    ProfileVisibility @default(MEMBERS_ONLY)
+  chatRequestPolicy    ChatRequestPolicy @default(EVERYONE)
+  photoRequestPolicy   PhotoRequestPolicy @default(VERIFIED_ONLY)
+  activityVisibility   ActivityVisibility @default(SHOW)
+  accountStatus        AccountStatus @default(ACTIVE)
+  role                 UserRole @default(USER)
+  image                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  settings               UserSettings?
+  media                  UserProfileMedia[]
+  interests              UserInterest[]
+  verificationRequests   VerificationRequest[] @relation("VerificationRequestSubject")
+  verificationReviewed   VerificationRequest[] @relation("VerificationRequestReviewer")
+
+  groupsCreated          Group[] @relation("GroupCreatedBy")
+  memberships            GroupMembership[]
+  joinRequestsFiled      GroupJoinRequest[] @relation("GroupJoinRequestApplicant")
+  joinRequestsReviewed   GroupJoinRequest[] @relation("GroupJoinRequestReviewer")
+
+  posts                  Post[]
+  comments               Comment[]
+
+  chatRequestsSent       ChatRequest[] @relation("ChatRequestFromUser")
+  chatRequestsReceived   ChatRequest[] @relation("ChatRequestToUser")
+  conversationsOne       Conversation[] @relation("ConversationUserOne")
+  conversationsTwo       Conversation[] @relation("ConversationUserTwo")
+  messages               Message[]
+
+  blocksInitiated        UserBlock[] @relation("UserBlockBlocker")
+  blocksReceived         UserBlock[] @relation("UserBlockBlocked")
+
+  photoRequestsSent      PhotoAccessRequest[] @relation("PhotoAccessRequester")
+  photoRequestsOwned     PhotoAccessRequest[] @relation("PhotoAccessOwner")
+  photoGrantsOwned       PhotoAccessGrant[] @relation("PhotoGrantOwner")
+  photoGrantsReceived    PhotoAccessGrant[] @relation("PhotoGrantGrantee")
+
+  notifications          Notification[]
+  reportsFiled           Report[] @relation("ReportFiledBy")
+  reportsResolved        Report[] @relation("ReportResolvedBy")
+  reportsAgainstUser     Report[] @relation("ReportTargetUser")
+  audits                 AuditLog[]
+
+  eventPromotionsCreated EventPromotion[] @relation("EventPromotionCreatedBy")
+
+  accounts               Account[]
+  sessions               Session[]
+}
+
+model UserSettings {
+  userId          String @id
+  themePreference ThemePreference @default(LIGHT)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Interest {
+  id        String @id @default(cuid())
+  name      String
+  slug      String @unique
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  users     UserInterest[]
+}
+
+model UserInterest {
+  id         String @id @default(cuid())
+  userId     String
+  interestId String
+  createdAt  DateTime @default(now())
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, interestId])
+  @@index([interestId])
+}
+
+model UserProfileMedia {
+  id              String @id @default(cuid())
+  userId          String
+  mediaType       MediaType
+  storageKey      String
+  visibilityLevel MediaVisibilityLevel @default(PRIVATE)
+  sortOrder       Int @default(0)
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, mediaType, isActive])
+}
+
+model VerificationRequest {
+  id               String @id @default(cuid())
+  userId           String
+  status           VerificationStatus @default(PENDING)
+  note             String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User @relation("VerificationRequestSubject", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy       User? @relation("VerificationRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+}
+
+model UserBlock {
+  id            String @id @default(cuid())
+  blockerUserId String
+  blockedUserId String
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  blocker       User @relation("UserBlockBlocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked       User @relation("UserBlockBlocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockedUserId])
+}
+
+model Group {
+  id                  String @id @default(cuid())
+  name                String
+  slug                String @unique
+  description         String?
+  groupType           GroupType
+  isSmallPrivateGroup Boolean @default(false)
+  status              GroupStatus @default(ACTIVE)
+  createdByUserId     String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  createdBy           User @relation("GroupCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  memberships         GroupMembership[]
+  joinQuestions       GroupJoinQuestion[]
+  joinRequests        GroupJoinRequest[]
+  posts               Post[]
+  reports             Report[] @relation("ReportTargetGroup")
+  eventPlacements     EventPromotionPlacement[]
+
+  @@index([groupType, status])
+}
+
+model GroupMembership {
+  id         String @id @default(cuid())
+  groupId    String
+  userId     String
+  role       GroupRole @default(MEMBER)
+  status     MembershipStatus @default(ACTIVE)
+  joinedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  group      Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+}
+
+model GroupJoinQuestion {
+  id           String @id @default(cuid())
+  groupId      String
+  questionText String
+  sortOrder    Int @default(0)
+  isRequired   Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  group        Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  answers      GroupJoinAnswer[]
+
+  @@index([groupId, sortOrder])
+}
+
+model GroupJoinRequest {
+  id               String @id @default(cuid())
+  groupId          String
+  applicantUserId  String
+  pairKey          String
+  pendingKey       String? @unique
+  status           GroupJoinRequestStatus @default(PENDING)
+  requestMessage   String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  group            Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  applicant        User @relation("GroupJoinRequestApplicant", fields: [applicantUserId], references: [id], onDelete: Cascade)
+  reviewedBy       User? @relation("GroupJoinRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  answers          GroupJoinAnswer[]
+
+  @@index([groupId, status, createdAt])
+  @@index([applicantUserId, status])
+  @@index([pairKey, createdAt])
+}
+
+model GroupJoinAnswer {
+  id            String @id @default(cuid())
+  joinRequestId String
+  questionId    String
+  answerText    String
+  createdAt     DateTime @default(now())
+
+  joinRequest   GroupJoinRequest @relation(fields: [joinRequestId], references: [id], onDelete: Cascade)
+  question      GroupJoinQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([joinRequestId, questionId])
+}
+
+model Post {
+  id               String @id @default(cuid())
+  authorUserId     String
+  contextType      PostContextType
+  groupId          String?
+  contentText      String
+  isAnonymous      Boolean @default(false)
+  visibilityStatus PostVisibilityStatus @default(VISIBLE)
+  moderationStatus ModerationStatus @default(CLEAN)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  author           User @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  group            Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  media            PostMedia[]
+  comments         Comment[]
+  reports          Report[] @relation("ReportTargetPost")
+
+  @@index([contextType, createdAt])
+  @@index([groupId, createdAt])
+}
+
+model PostMedia {
+  id         String @id @default(cuid())
+  postId     String
+  storageKey String
+  sortOrder  Int @default(0)
+  createdAt  DateTime @default(now())
+
+  post       Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id               String @id @default(cuid())
+  postId           String
+  authorUserId     String
+  contentText      String
+  moderationStatus ModerationStatus @default(CLEAN)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  post             Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author           User @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  reports          Report[] @relation("ReportTargetComment")
+
+  @@index([postId, createdAt])
+}
+
+model ChatRequest {
+  id           String @id @default(cuid())
+  fromUserId   String
+  toUserId     String
+  pairKey      String
+  pendingKey   String? @unique
+  status       ChatRequestStatus @default(PENDING)
+  createdAt    DateTime @default(now())
+  respondedAt  DateTime?
+
+  fromUser     User @relation("ChatRequestFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser       User @relation("ChatRequestToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+  conversation Conversation?
+
+  @@index([toUserId, status, createdAt])
+  @@index([pairKey, createdAt])
+}
+
+model Conversation {
+  id                        String @id @default(cuid())
+  userOneId                 String
+  userTwoId                 String
+  pairKey                   String @unique
+  status                    ConversationStatus @default(ACTIVE)
+  createdFromChatRequestId  String @unique
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  userOne                   User @relation("ConversationUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo                   User @relation("ConversationUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+  createdFromChatRequest    ChatRequest @relation(fields: [createdFromChatRequestId], references: [id], onDelete: Restrict)
+  messages                  Message[]
+
+  @@index([status, updatedAt])
+}
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  senderUserId   String
+  body           String
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+  reports        Report[] @relation("ReportTargetMessage")
+
+  @@index([conversationId, createdAt])
+}
+
+model PhotoAccessRequest {
+  id              String @id @default(cuid())
+  requesterUserId String
+  ownerUserId     String
+  pairKey         String
+  pendingKey      String? @unique
+  status          PhotoAccessRequestStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  respondedAt     DateTime?
+
+  requester       User @relation("PhotoAccessRequester", fields: [requesterUserId], references: [id], onDelete: Cascade)
+  owner           User @relation("PhotoAccessOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  grant           PhotoAccessGrant?
+
+  @@index([ownerUserId, status, createdAt])
+  @@index([requesterUserId, status, createdAt])
+  @@index([pairKey, createdAt])
+}
+
+model PhotoAccessGrant {
+  id            String @id @default(cuid())
+  requestId     String @unique
+  ownerUserId   String
+  granteeUserId String
+  grantedAt     DateTime @default(now())
+  revokedAt     DateTime?
+
+  request       PhotoAccessRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  owner         User @relation("PhotoGrantOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  grantee       User @relation("PhotoGrantGrantee", fields: [granteeUserId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerUserId, granteeUserId])
+}
+
+model EventPromotion {
+  id              String @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String?
+  externalLink    String
+  couponCode      String?
+  status          EventPromotionStatus @default(DRAFT)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy       User @relation("EventPromotionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  placements      EventPromotionPlacement[]
+}
+
+model EventPromotionPlacement {
+  id               String @id @default(cuid())
+  eventPromotionId String
+  placementType    PlacementType
+  groupId          String?
+  priority         Int @default(0)
+  isActive         Boolean @default(true)
+  createdAt        DateTime @default(now())
+
+  eventPromotion   EventPromotion @relation(fields: [eventPromotionId], references: [id], onDelete: Cascade)
+  group            Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([placementType, isActive, priority])
+  @@index([groupId, isActive])
+}
+
+model Notification {
+  id          String @id @default(cuid())
+  userId      String
+  type        NotificationType
+  payloadJson Json
+  isRead      Boolean @default(false)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Report {
+  id               String @id @default(cuid())
+  filedByUserId    String
+  targetType       ReportTargetType
+  targetUserId     String?
+  targetPostId     String?
+  targetCommentId  String?
+  targetMessageId  String?
+  targetGroupId    String?
+  reasonCode       String
+  details          String?
+  status           ReportStatus @default(OPEN)
+  resolvedByUserId String?
+  resolvedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  filedBy          User @relation("ReportFiledBy", fields: [filedByUserId], references: [id], onDelete: Cascade)
+  resolvedBy       User? @relation("ReportResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  targetUser       User? @relation("ReportTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetPost       Post? @relation("ReportTargetPost", fields: [targetPostId], references: [id], onDelete: SetNull)
+  targetComment    Comment? @relation("ReportTargetComment", fields: [targetCommentId], references: [id], onDelete: SetNull)
+  targetMessage    Message? @relation("ReportTargetMessage", fields: [targetMessageId], references: [id], onDelete: SetNull)
+  targetGroup      Group? @relation("ReportTargetGroup", fields: [targetGroupId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, createdAt])
+}
+
+model AuditLog {
+  id           String @id @default(cuid())
+  actorUserId  String?
+  action       String
+  targetType   String
+  targetId     String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  actor        User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

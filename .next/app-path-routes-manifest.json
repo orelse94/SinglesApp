@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/robots.txt/route": "/robots.txt",
+  "/api/auth/[...nextauth]/route": "/api/auth/[...nextauth]",
+  "/(app)/admin/page": "/admin",
+  "/(app)/me/page": "/me",
+  "/(auth)/login/page": "/login",
+  "/(app)/home/page": "/home",
+  "/(auth)/register/page": "/register",
+  "/page": "/",
+  "/(app)/users/[userId]/page": "/users/[userId]"
+}
