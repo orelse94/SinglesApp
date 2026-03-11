@@ -55,11 +55,6 @@ const authConfig = {
       },
     }),
   ],
-  callbacks: {
-    async signIn({ account }) {
-      return account?.provider === "google" || account?.provider === "credentials";
-    },
-  },
 } satisfies NextAuthConfig;
 
 export default authConfig;

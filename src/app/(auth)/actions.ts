@@ -1,10 +1,12 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { redirect } from "next/navigation";
 import { z } from "zod";
-import { signIn } from "@/auth";
+import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
-import { ThemePreference } from "@prisma/client";
+import { clearLocalSession, createLocalSession } from "@/lib/auth/local-session";
+import { AccountStatus, ThemePreference } from "@prisma/client";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -48,25 +50,46 @@ export async function registerAction(formData: FormData) {
     },
   });
 
-  await signIn("credentials", {
-    email: parsed.data.email,
-    password: parsed.data.password,
-    redirectTo: "/home",
-  });
-
+  await createLocalSession(parsed.data.email);
+  redirect("/home");
 }
 
 export async function signInAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  await signIn("credentials", {
-    email,
-    password,
-    redirectTo: "/home",
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      email: true,
+      passwordHash: true,
+      accountStatus: true,
+    },
   });
+
+  if (!user || !user.passwordHash || user.accountStatus !== AccountStatus.ACTIVE) {
+    redirect("/login?error=credentials");
+  }
+
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) {
+    redirect("/login?error=credentials");
+  }
+
+  await createLocalSession(user.email);
+  redirect("/home");
 }
 
 export async function signInWithGoogleAction() {
   await signIn("google", { redirectTo: "/home" });
+}
+
+export async function signOutAction() {
+  await clearLocalSession();
+
+  try {
+    await signOut({ redirectTo: "/" });
+  } catch {
+    redirect("/");
+  }
 }

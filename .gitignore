@@ -1,2 +1,6 @@
 node_modules/
 .env
+.next/
+playwright-report/
+test-results/
+tests/e2e/.seed-data.json

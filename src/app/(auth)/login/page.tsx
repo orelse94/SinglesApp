@@ -1,17 +1,12 @@
 import Link from "next/link";
-import { signInAction, signInWithGoogleAction } from "../actions";
+import { signInWithGoogleAction } from "../actions";
+import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 px-4 py-10">
       <h1 className="text-2xl font-semibold">Sign in</h1>
-      <form action={signInAction} className="flex flex-col gap-3">
-        <input className="rounded-md border p-2" name="email" type="email" placeholder="Email" required />
-        <input className="rounded-md border p-2" name="password" type="password" placeholder="Password" required />
-        <button className="rounded-md bg-primary p-2 text-primary-foreground" type="submit">
-          Sign in
-        </button>
-      </form>
+      <LoginForm />
       <form action={signInWithGoogleAction}>
         <button className="w-full rounded-md border p-2" type="submit">
           Continue with Google

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
+import { getCurrentUser } from "@/lib/auth/guards";
 import { ThemePreference } from "@prisma/client";
 
 export const metadata: Metadata = {
@@ -12,12 +12,12 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await auth();
+  const currentUser = await getCurrentUser();
 
   let theme: ThemePreference = ThemePreference.LIGHT;
-  if (session?.user?.email) {
+  if (currentUser?.email) {
     const settings = await prisma.userSettings.findFirst({
-      where: { user: { email: session.user.email } },
+      where: { user: { email: currentUser.email } },
       select: { themePreference: true },
     });
 
