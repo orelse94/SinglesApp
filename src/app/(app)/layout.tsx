@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { signOutAction } from "../(auth)/actions";
-import { getCurrentUser } from "@/lib/auth/guards";
+import { requireMemberUser } from "@/lib/auth/guards";
 
 const navigation = [
   { href: "/home", label: "Home" },
@@ -11,7 +11,7 @@ const navigation = [
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const currentUser = await getCurrentUser();
+  const currentUser = await requireMemberUser();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Discreet Community</p>
-            <p className="text-sm font-semibold">{currentUser?.email ?? "Member"}</p>
+            <p className="text-sm font-semibold">{currentUser.email}</p>
           </div>
           <form action={signOutAction}>
             <button className="rounded-full border px-3 py-1.5 text-xs font-medium" type="submit">

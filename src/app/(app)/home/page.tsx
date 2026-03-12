@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { MembershipStatus, PostContextType } from "@prisma/client";
+import { MembershipStatus, PlacementType, PostContextType, PostVisibilityStatus } from "@prisma/client";
 import { createCommentAction, createPostAction } from "../actions";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
+import { getPromotedPlacement } from "@/lib/promotions";
 
 function formatDateTime(value: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -25,12 +26,17 @@ export default async function HomePage() {
 
   const visibleGroupIds = memberships.map((membership) => membership.groupId);
 
-  const [posts, recommendedGroups] = await Promise.all([
+  const [posts, recommendedGroups, promotedPlacement] = await Promise.all([
     prisma.post.findMany({
       where: {
+        visibilityStatus: PostVisibilityStatus.VISIBLE,
         OR: [
           { contextType: PostContextType.GLOBAL_FEED },
-          { contextType: PostContextType.GROUP, groupId: { in: visibleGroupIds.length > 0 ? visibleGroupIds : ["__none__"] } },
+          {
+            contextType: PostContextType.GROUP,
+            groupId: { in: visibleGroupIds.length > 0 ? visibleGroupIds : ["__none__"] },
+            group: { status: "ACTIVE" },
+          },
         ],
       },
       orderBy: { createdAt: "desc" },
@@ -45,6 +51,7 @@ export default async function HomePage() {
         author: { select: { id: true, displayName: true } },
         group: { select: { id: true, name: true } },
         comments: {
+          where: { moderationStatus: { not: "REMOVED" } },
           orderBy: { createdAt: "asc" },
           take: 5,
           select: {
@@ -66,6 +73,7 @@ export default async function HomePage() {
       take: 3,
       select: { id: true, name: true, description: true, groupType: true },
     }),
+    getPromotedPlacement(PlacementType.HOME_FEED_CARD),
   ]);
 
   return (
@@ -88,6 +96,28 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {promotedPlacement ? (
+        <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 shadow-sm" data-testid="home-promoted-event">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-amber-700">Promoted event</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{promotedPlacement.eventPromotion.title}</h2>
+              <p className="mt-2 max-w-2xl text-sm text-amber-900/80">
+                {promotedPlacement.eventPromotion.description ?? "A promoted community event is currently highlighted here."}
+              </p>
+              {promotedPlacement.eventPromotion.couponCode ? (
+                <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-800">
+                  Coupon: {promotedPlacement.eventPromotion.couponCode}
+                </p>
+              ) : null}
+            </div>
+            <a className="inline-flex rounded-full border border-amber-400 px-4 py-2 text-sm font-medium text-amber-900" href={promotedPlacement.eventPromotion.externalLink} rel="noreferrer" target="_blank">
+              View promoted event
+            </a>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(300px,0.9fr)]">
         <div className="space-y-6">
@@ -268,5 +298,3 @@ export default async function HomePage() {
     </main>
   );
 }
-
-

@@ -15,6 +15,9 @@ import {
   ThemePreference,
   VerificationStatus,
   PostContextType,
+  UserRole,
+  ReportTargetType,
+  ReportStatus,
 } from "@prisma/client";
 
 function loadEnvFile(fileName: string) {
@@ -75,26 +78,29 @@ async function createUser(options: {
   email: string;
   displayName: string;
   passwordHash: string;
-  verified?: boolean;
+  role?: UserRole;
+  verifiedPrerequisites?: boolean;
+  verificationStatus?: VerificationStatus;
   profileVisibility?: ProfileVisibility;
   chatRequestPolicy?: ChatRequestPolicy;
   photoRequestPolicy?: PhotoRequestPolicy;
 }) {
-  const verified = options.verified ?? false;
+  const verifiedPrerequisites = options.verifiedPrerequisites ?? false;
 
   const user = await prisma.user.create({
     data: {
       email: options.email,
       passwordHash: options.passwordHash,
       displayName: options.displayName,
+      role: options.role ?? UserRole.USER,
       accountStatus: AccountStatus.ACTIVE,
       profileVisibility: options.profileVisibility ?? ProfileVisibility.MEMBERS_ONLY,
       chatRequestPolicy: options.chatRequestPolicy ?? ChatRequestPolicy.EVERYONE,
       photoRequestPolicy: options.photoRequestPolicy ?? PhotoRequestPolicy.VERIFIED_ONLY,
-      emailVerified: verified ? VERIFIED_AT : null,
-      phoneVerifiedAt: verified ? VERIFIED_AT : null,
-      ageVerified: verified,
-      verificationStatus: verified ? VerificationStatus.APPROVED : VerificationStatus.NONE,
+      emailVerified: verifiedPrerequisites ? VERIFIED_AT : null,
+      phoneVerifiedAt: verifiedPrerequisites ? VERIFIED_AT : null,
+      ageVerified: verifiedPrerequisites,
+      verificationStatus: options.verificationStatus ?? (verifiedPrerequisites ? VerificationStatus.APPROVED : VerificationStatus.NONE),
     },
     select: {
       id: true,
@@ -117,6 +123,8 @@ async function main() {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
   await prisma.notification.deleteMany();
+  await prisma.report.deleteMany();
+  await prisma.auditLog.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.chatRequest.deleteMany();
@@ -129,8 +137,6 @@ async function main() {
   await prisma.groupMembership.deleteMany();
   await prisma.eventPromotionPlacement.deleteMany();
   await prisma.eventPromotion.deleteMany();
-  await prisma.report.deleteMany();
-  await prisma.auditLog.deleteMany();
   await prisma.group.deleteMany();
   await prisma.photoAccessGrant.deleteMany();
   await prisma.photoAccessRequest.deleteMany();
@@ -152,11 +158,19 @@ async function main() {
     upsertInterest("Culture", "culture"),
   ]);
 
+  const admin = await createUser({
+    email: "admin@example.com",
+    displayName: "Admin Avery",
+    passwordHash,
+    role: UserRole.ADMIN,
+    verifiedPrerequisites: true,
+  });
+
   const owner = await createUser({
     email: "owner@example.com",
     displayName: "Owner One",
     passwordHash,
-    verified: true,
+    verifiedPrerequisites: true,
     profileVisibility: ProfileVisibility.MEMBERS_ONLY,
     chatRequestPolicy: ChatRequestPolicy.EVERYONE,
     photoRequestPolicy: PhotoRequestPolicy.VERIFIED_ONLY,
@@ -166,28 +180,43 @@ async function main() {
     email: "member@example.com",
     displayName: "Member Uno",
     passwordHash,
-    verified: false,
   });
 
   const verified = await createUser({
     email: "verified@example.com",
     displayName: "Verified Vera",
     passwordHash,
-    verified: true,
+    verifiedPrerequisites: true,
   });
 
   const blockedRequester = await createUser({
     email: "blocked@example.com",
     displayName: "Blocked Blake",
     passwordHash,
-    verified: true,
+    verifiedPrerequisites: true,
   });
 
   const blockedTarget = await createUser({
     email: "blocked-target@example.com",
     displayName: "Blocked Target",
     passwordHash,
-    verified: true,
+    verifiedPrerequisites: true,
+  });
+
+  const verificationApproveUser = await createUser({
+    email: "verification-approve@example.com",
+    displayName: "Verification Ready",
+    passwordHash,
+    verifiedPrerequisites: true,
+    verificationStatus: VerificationStatus.PENDING,
+  });
+
+  const verificationRejectUser = await createUser({
+    email: "verification-reject@example.com",
+    displayName: "Verification Reject",
+    passwordHash,
+    verifiedPrerequisites: true,
+    verificationStatus: VerificationStatus.PENDING,
   });
 
   await prisma.userInterest.createMany({
@@ -197,6 +226,13 @@ async function main() {
       { userId: verified.id, interestId: interests[2].id },
     ],
     skipDuplicates: true,
+  });
+
+  await prisma.verificationRequest.createMany({
+    data: [
+      { userId: verificationApproveUser.id, status: VerificationStatus.PENDING },
+      { userId: verificationRejectUser.id, status: VerificationStatus.PENDING },
+    ],
   });
 
   const closedGroup = await prisma.group.create({
@@ -217,6 +253,16 @@ async function main() {
     select: { id: true, name: true },
   });
 
+  const reportedPost = await prisma.post.create({
+    data: {
+      authorUserId: member.id,
+      contextType: PostContextType.GLOBAL_FEED,
+      contentText: "Reportable post content that should disappear after moderation.",
+      isAnonymous: false,
+    },
+    select: { id: true, contentText: true },
+  });
+
   await prisma.post.create({
     data: {
       authorUserId: owner.id,
@@ -225,6 +271,18 @@ async function main() {
       contentText: "Hidden circle post for members only.",
       isAnonymous: false,
     },
+  });
+
+  const postReport = await prisma.report.create({
+    data: {
+      targetType: ReportTargetType.POST,
+      reasonCode: "SAFETY",
+      details: "This seeded post should be hidden by the admin moderation flow.",
+      status: ReportStatus.OPEN,
+      filedBy: { connect: { id: owner.id } },
+      targetPost: { connect: { id: reportedPost.id } },
+    },
+    select: { id: true },
   });
 
   await prisma.userProfileMedia.createMany({
@@ -257,14 +315,23 @@ async function main() {
   const manifest = {
     password: PASSWORD,
     users: {
+      admin,
       owner,
       member,
       verified,
       blockedRequester,
       blockedTarget,
+      verificationApproveUser,
+      verificationRejectUser,
     },
     groups: {
       closedGroup,
+    },
+    posts: {
+      reportedPost,
+    },
+    reports: {
+      postReport,
     },
   };
 
@@ -283,3 +350,5 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+

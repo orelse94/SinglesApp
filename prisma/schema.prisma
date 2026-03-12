@@ -193,6 +193,7 @@ model User {
   activityVisibility   ActivityVisibility @default(SHOW)
   accountStatus        AccountStatus @default(ACTIVE)
   role                 UserRole @default(USER)
+  isTestUser           Boolean @default(false)
   image                String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt

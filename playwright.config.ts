@@ -36,6 +36,8 @@ loadEnvFile(".env");
 loadEnvFile(".env.local");
 
 const databaseUrl = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL;
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3100";
+const port = Number(new URL(baseURL).port || "3100");
 
 if (!databaseUrl) {
   throw new Error("Set DATABASE_URL or E2E_DATABASE_URL before running Playwright tests.");
@@ -53,20 +55,20 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   globalSetup: "./tests/e2e/global-setup.ts",
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev",
-    port: 3000,
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --port ${port}`,
+    port,
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
-      AUTH_URL: process.env.E2E_BASE_URL ?? process.env.AUTH_URL ?? "http://localhost:3000",
+      AUTH_URL: baseURL,
     },
   },
   projects: [
@@ -77,3 +79,6 @@ export default defineConfig({
   ],
   outputDir: "test-results/playwright",
 });
+
+
+

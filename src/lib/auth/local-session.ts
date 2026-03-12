@@ -26,8 +26,12 @@ function encodePayload(payload: LocalSessionPayload) {
 }
 
 function decodePayload(value: string) {
-  const raw = Buffer.from(value, "base64url").toString("utf8");
-  return JSON.parse(raw) as LocalSessionPayload;
+  try {
+    const raw = Buffer.from(value, "base64url").toString("utf8");
+    return JSON.parse(raw) as LocalSessionPayload;
+  } catch {
+    return null;
+  }
 }
 
 export function buildLocalSessionCookie(email: string) {
@@ -85,7 +89,7 @@ export function readLocalSession(rawValue: string | undefined) {
   }
 
   const payload = decodePayload(encoded);
-  if (!payload.email || payload.exp < Math.floor(Date.now() / 1000)) {
+  if (!payload?.email || payload.exp < Math.floor(Date.now() / 1000)) {
     return null;
   }
 

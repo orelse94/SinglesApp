@@ -43,6 +43,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ c
         },
       },
       messages: {
+        where: { deletedAt: null },
         orderBy: { createdAt: "asc" },
         take: 100,
         select: {
@@ -134,3 +135,4 @@ export default async function ConversationPage({ params }: { params: Promise<{ c
     </main>
   );
 }
+

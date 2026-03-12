@@ -6,10 +6,11 @@ const PASSWORD = "12345678a";
 export { loadSeedData, resetE2EState };
 export type { SeedData };
 
-export async function loginAs(page: Page, email: string, password = PASSWORD) {
+export async function loginAs(page: Page, email: string, password = PASSWORD, expectedPath = /\/home$/) {
   await page.goto("/login");
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(expectedPath);
 }

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
 import { clearLocalSession, createLocalSession } from "@/lib/auth/local-session";
-import { AccountStatus, ThemePreference } from "@prisma/client";
+import { AccountStatus, ThemePreference, UserRole } from "@prisma/client";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -64,6 +64,7 @@ export async function signInAction(formData: FormData) {
       email: true,
       passwordHash: true,
       accountStatus: true,
+      role: true,
     },
   });
 
@@ -77,7 +78,7 @@ export async function signInAction(formData: FormData) {
   }
 
   await createLocalSession(user.email);
-  redirect("/home");
+  redirect(user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN ? "/admin" : "/home");
 }
 
 export async function signInWithGoogleAction() {

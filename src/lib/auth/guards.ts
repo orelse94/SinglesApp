@@ -83,15 +83,25 @@ export async function requireUser() {
     redirect("/login");
   }
 
+  if (user.accountStatus !== AccountStatus.ACTIVE) {
+    redirect("/login?error=account-inactive");
+  }
+
+  return user;
+}
+
+export async function requireMemberUser() {
+  const user = await requireUser();
+
+  if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+    redirect("/admin");
+  }
+
   return user;
 }
 
 export async function requireActiveUser() {
-  const user = await requireUser();
-  if (user.accountStatus !== AccountStatus.ACTIVE) {
-    throw new Error("Your account is not active.");
-  }
-  return user;
+  return requireMemberUser();
 }
 
 export async function requireAdmin() {

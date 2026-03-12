@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { GroupRole, GroupType, MembershipStatus, PostContextType } from "@prisma/client";
+import { GroupRole, GroupType, MembershipStatus, PlacementType, PostContextType, PostVisibilityStatus } from "@prisma/client";
 import { createCommentAction, createPostAction, joinGroupAction, removeGroupMemberAction, reviewGroupJoinRequestAction, updateGroupAction } from "../../actions";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
+import { getPromotedPlacement } from "@/lib/promotions";
 import { notFound } from "next/navigation";
 
 function formatDateTime(value: Date) {
@@ -20,61 +21,66 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ gr
   const viewer = await requireUser();
   const { groupId } = await params;
 
-  const group = await prisma.group.findUnique({
-    where: { id: groupId },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      groupType: true,
-      isSmallPrivateGroup: true,
-      createdByUserId: true,
-      memberships: {
-        where: { status: MembershipStatus.ACTIVE },
-        orderBy: { joinedAt: "asc" },
-        select: {
-          userId: true,
-          role: true,
-          user: { select: { id: true, displayName: true } },
+  const [group, promotedPlacement] = await Promise.all([
+    prisma.group.findUnique({
+      where: { id: groupId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        groupType: true,
+        isSmallPrivateGroup: true,
+        status: true,
+        createdByUserId: true,
+        memberships: {
+          where: { status: MembershipStatus.ACTIVE },
+          orderBy: { joinedAt: "asc" },
+          select: {
+            userId: true,
+            role: true,
+            user: { select: { id: true, displayName: true } },
+          },
         },
-      },
-      joinRequests: {
-        where: { status: "PENDING" },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          requestMessage: true,
-          createdAt: true,
-          applicant: { select: { id: true, displayName: true } },
+        joinRequests: {
+          where: { status: "PENDING" },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            requestMessage: true,
+            createdAt: true,
+            applicant: { select: { id: true, displayName: true } },
+          },
         },
-      },
-      posts: {
-        where: { contextType: PostContextType.GROUP },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        select: {
-          id: true,
-          contentText: true,
-          isAnonymous: true,
-          createdAt: true,
-          authorUserId: true,
-          author: { select: { displayName: true } },
-          comments: {
-            orderBy: { createdAt: "asc" },
-            take: 5,
-            select: {
-              id: true,
-              contentText: true,
-              createdAt: true,
-              author: { select: { displayName: true } },
+        posts: {
+          where: { contextType: PostContextType.GROUP, visibilityStatus: PostVisibilityStatus.VISIBLE },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            contentText: true,
+            isAnonymous: true,
+            createdAt: true,
+            authorUserId: true,
+            author: { select: { displayName: true } },
+            comments: {
+              where: { moderationStatus: { not: "REMOVED" } },
+              orderBy: { createdAt: "asc" },
+              take: 5,
+              select: {
+                id: true,
+                contentText: true,
+                createdAt: true,
+                author: { select: { displayName: true } },
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    getPromotedPlacement(PlacementType.GROUP_DETAIL_BANNER, groupId),
+  ]);
 
-  if (!group) {
+  if (!group || group.status !== "ACTIVE") {
     notFound();
   }
 
@@ -106,6 +112,23 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ gr
           </div>
         </div>
       </section>
+
+      {promotedPlacement ? (
+        <section className="rounded-[2rem] border border-rose-200 bg-rose-50 p-6 shadow-sm" data-testid="group-promoted-event">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-rose-700">Promoted event</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{promotedPlacement.eventPromotion.title}</h2>
+              <p className="mt-2 max-w-2xl text-sm text-rose-900/80">
+                {promotedPlacement.eventPromotion.description ?? "A promoted event is highlighted for this group."}
+              </p>
+            </div>
+            <a className="inline-flex rounded-full border border-rose-400 px-4 py-2 text-sm font-medium text-rose-900" href={promotedPlacement.eventPromotion.externalLink} rel="noreferrer" target="_blank">
+              View promoted event
+            </a>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         <div className="space-y-6">

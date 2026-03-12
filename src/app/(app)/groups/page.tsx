@@ -1,33 +1,37 @@
 import Link from "next/link";
-import { GroupType, MembershipStatus } from "@prisma/client";
+import { GroupType, MembershipStatus, PlacementType } from "@prisma/client";
 import { createGroupAction, joinGroupAction } from "../actions";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
+import { getPromotedPlacement } from "@/lib/promotions";
 
 export default async function GroupsPage() {
   const viewer = await requireUser();
 
-  const groups = await prisma.group.findMany({
-    where: { status: "ACTIVE" },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      groupType: true,
-      isSmallPrivateGroup: true,
-      createdByUserId: true,
-      _count: { select: { memberships: { where: { status: MembershipStatus.ACTIVE } } } },
-      memberships: {
-        where: { userId: viewer.id },
-        select: { status: true, role: true },
+  const [groups, promotedPlacement] = await Promise.all([
+    prisma.group.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        groupType: true,
+        isSmallPrivateGroup: true,
+        createdByUserId: true,
+        _count: { select: { memberships: { where: { status: MembershipStatus.ACTIVE } } } },
+        memberships: {
+          where: { userId: viewer.id },
+          select: { status: true, role: true },
+        },
+        joinRequests: {
+          where: { applicantUserId: viewer.id, status: "PENDING" },
+          select: { id: true },
+        },
       },
-      joinRequests: {
-        where: { applicantUserId: viewer.id, status: "PENDING" },
-        select: { id: true },
-      },
-    },
-  });
+    }),
+    getPromotedPlacement(PlacementType.GROUPS_LIST_BANNER),
+  ]);
 
   const joinedCount = groups.filter((group) => group.memberships[0]?.status === MembershipStatus.ACTIVE).length;
   const pendingCount = groups.filter((group) => group.joinRequests.length > 0).length;
@@ -50,6 +54,23 @@ export default async function GroupsPage() {
           </div>
         </div>
       </section>
+
+      {promotedPlacement ? (
+        <section className="rounded-[2rem] border border-sky-200 bg-sky-50 p-6 shadow-sm" data-testid="groups-promoted-event">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-sky-700">Promoted event</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{promotedPlacement.eventPromotion.title}</h2>
+              <p className="mt-2 max-w-2xl text-sm text-sky-900/80">
+                {promotedPlacement.eventPromotion.description ?? "A promoted community event is highlighted in the groups area."}
+              </p>
+            </div>
+            <a className="inline-flex rounded-full border border-sky-400 px-4 py-2 text-sm font-medium text-sky-900" href={promotedPlacement.eventPromotion.externalLink} rel="noreferrer" target="_blank">
+              View promoted event
+            </a>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         <div className="space-y-4">

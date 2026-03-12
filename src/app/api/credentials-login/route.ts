@@ -2,10 +2,10 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { buildLocalSessionCookie } from "@/lib/auth/local-session";
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, UserRole } from "@prisma/client";
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { email?: string; password?: string } | null;
+  const body = (await request.json().catch(() => null)) as { email?: string; password?: string } | null;
   const email = String(body?.email ?? "").toLowerCase();
   const password = String(body?.password ?? "");
 
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       email: true,
       passwordHash: true,
       accountStatus: true,
+      role: true,
     },
   });
 
@@ -27,7 +28,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "credentials" }, { status: 401 });
   }
 
-  const response = NextResponse.json({ ok: true, redirectTo: "/home" });
+  const redirectTo = user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN ? "/admin" : "/home";
+  const response = NextResponse.json({ ok: true, redirectTo });
   const sessionCookie = buildLocalSessionCookie(user.email);
   response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
   return response;
